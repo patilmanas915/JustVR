@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JustVR - Screen Share with Annotations</title>
+    <style>
+        :root {
+            --main-bg: #16182b;
+            --panel-bg: #23244a;
+            --card-bg: #212245;
+            --primary: #4f8cff;
+            --accent: #ffb85c;
+            --button: #4f8cff;
+            --button-hover: #3c6edc;
+            --button-active: #355db2;
+            --text: #f5f6fa;
+            --text-muted: #d1d4e3;
+            --border: #2a2c54;
+            --input-bg: #27285a;
+            --input-border: #3b3c6d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--main-bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* Annotation Panel - 20% width */
+        .annotation-panel {
+            width: 20%;
+            background: var(--panel-bg);
+            border-right: 2px solid var(--border);
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            transition: all 0.3s ease;
+             min-height: 90vh;
+        }
+
+        .annotation-panel.hidden {
+            width: 0;
+            padding: 0;
+            opacity: 0;
+        }
+
+        /* Screen Share Panel - 80% width */
+        .screenshare-panel {
+            width: 80%;
+            background: var(--main-bg);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .screenshare-panel.fullscreen {
+            width: 100%;
+        }
+
+        /* Fullscreen mode */
+        body.fullscreen-mode {
+            overflow: hidden;
+        }
+
+        body.fullscreen-mode .annotation-panel {
+            display: none;
+        }
+
+        body.fullscreen-mode .screenshare-panel {
+            width: 100% !important;
+        }
+
+        /* Header with controls */
+        .header {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header h1 {
+            color: var(--accent);
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .session-input {
+            background: var(--input-bg);
+            color: var(--text);
+            border: 1px solid var(--input-border);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            min-width: 120px;
+        }
+
+        .session-input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* Video container */
+        .video-container {
+            flex: 1;
+            background: #000;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-direction: column;
+        }
+
+        .overlay-btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            backdrop-filter: blur(10px);
+            transition: background 0.2s;
+        }
+
+        .overlay-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .overlay-btn.active {
+            background: var(--primary);
+        }
+
+        /* Tab audio preview */
+        .tab-preview {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            width: 200px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .tab-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .tab-preview-label {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.3rem;
+            font-size: 0.7rem;
+        }
+
+        /* Audio meters */
+        .audio-meters {
+            background: var(--card-bg);
+            border-radius: 0.7rem;
+            border: 1px solid var(--border);
+            padding: 1rem;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .meter-container {
+            margin: 0.5rem 0;
+        }
+
+        .meter-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .meter-bar {
+            height: 8px;
+            background: var(--input-bg);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .meter-level {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #28a745, #17a2b8);
+            border-radius: 4px;
+            transition: width 0.1s ease;
+        }
+
+        /* Annotation panel styles */
+        .panel-title {
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .room-code-section {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 0.7rem;
+            border: 1px solid var(--border);
+        }
+
+        .room-code-display {
+            background: var(--input-bg);
+            color: var(--accent);
+            border: 1px solid var(--input-border);
+            border-radius: 0.5rem;
+            padding: 0.7rem;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+        }
+
+        /* Form controls */
+        label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+            display: block;
+        }
+
+        select, input[type="file"], input[type="range"] {
+            background: var(--input-bg);
+            color: var(--text);
+            border: 1px solid var(--input-border);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            width: 100%;
+            margin-bottom: 0.8rem;
+            font-size: 0.9rem;
+        }
+
+        select:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        input[type="range"] {
+            accent-color: var(--accent);
+            margin: 0.5rem 0;
+        }
+
+        /* Buttons */
+        button {
+            background: var(--button);
+            color: var(--text);
+            border: none;
+            padding: 0.6rem 1rem;
+            margin: 0.2rem;
+            border-radius: 0.6rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            background: var(--button-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            background: var(--button-active);
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.3rem;
+            margin: 0.5rem 0;
+        }
+
+        .btn-group button {
+            margin: 0;
+            font-size: 0.8rem;
+            padding: 0.4rem;
+        }
+
+        .mobile-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 0.2rem;
+            margin: 0.5rem 0;
+        }
+
+        .mobile-controls button {
+            margin: 0;
+            padding: 0.8rem;
+            font-size: 1.2rem;
+        }
+
+        .mobile-controls .up { grid-column: 2; grid-row: 1; }
+        .mobile-controls .left { grid-column: 1; grid-row: 2; }
+        .mobile-controls .down { grid-column: 2; grid-row: 2; }
+        .mobile-controls .right { grid-column: 3; grid-row: 2; }
+
+        /* Annotation list */
+        .annotation-list {
+            background: var(--card-bg);
+            border-radius: 0.7rem;
+            border: 1px solid var(--border);
+            padding: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+            min-height: fit-content;
+        }
+
+        .annotation-item {
+            background: var(--input-bg);
+            padding: 0.5rem;
+            margin: 0.3rem 0;
+            border-radius: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .annotation-item.active {
+            background: var(--primary);
+        }
+
+        .annotation-item button {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.7rem;
+            margin: 0 0.1rem;
+            width: auto;
+        }
+
+        /* Upload section */
+        .upload-section {
+            background: var(--card-bg);
+            border-radius: 0.7rem;
+            border: 1px solid var(--border);
+            padding: 1rem;
+        }
+
+        .upload-result {
+            margin-top: 0.5rem;
+            min-height: 2rem;
+            color: var(--accent);
+            font-weight: 500;
+            text-align: center;
+            font-size: 0.8rem;
+        }
+
+        .thumbnail {
+            max-width: 100%;
+            max-height: 80px;
+            border-radius: 0.3rem;
+            margin: 0.2rem 0;
+        }
+
+        /* Tab audio controls */
+        .tab-audio-section {
+            background: var(--card-bg);
+            border-radius: 0.7rem;
+            border: 1px solid var(--border);
+            padding: 1rem;
+        }
+
+        .audio-btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .audio-btn-group button {
+            margin: 0;
+            font-size: 0.8rem;
+            padding: 0.5rem;
+        }
+
+        .tab-btn.active {
+            background: #28a745;
+        }
+
+        /* Status messages */
+        .status {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.7rem;
+            font-weight: bold;
+            z-index: 1000;
+            max-width: 80%;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+
+        /* Responsive design */
+        @media (max-width: 1024px) {
+            .annotation-panel {
+                width: 25%;
+            }
+            .screenshare-panel {
+                width: 75%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .annotation-panel {
+                width: 100%;
+                height: 30%;
+                border-right: none;
+                border-bottom: 2px solid var(--border);
+            }
+            .screenshare-panel {
+                width: 100%;
+                height: 70%;
+            }
+            .screenshare-panel.fullscreen {
+                height: 100%;
+            }
+        }
+
+        /* Toggle panel button for mobile */
+        .toggle-panel-btn {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 3rem;
+            height: 3rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .toggle-panel-btn {
+                display: block;
+            }
+            .annotation-panel.hidden {
+                height: 0;
+                border: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toggle button for mobile -->
+    <button class="toggle-panel-btn" onclick="toggleAnnotationPanel()">📝</button>
+
+    <!-- Annotation Panel (20%) -->
+    <div class="annotation-panel" id="annotationPanel">
+        <h2 class="panel-title">🎯 Annotation Controller</h2>
+        
+        <!-- Room Code Display -->
+        <div class="room-code-section">
+            <label>Room Code:</label>
+            <div class="room-code-display" id="roomCode">Loading...</div>
+        </div>
+
+        <!-- Shape Selection -->
+        <div>
+            <label>Choose Shape:</label>
+            <select id="shapeSelector">
+                <option>Circle</option>
+                <option>Square</option>
+                <option>Arrow</option>
+                <option>Triangle</option>
+            </select>
+        </div>
+
+        <!-- Create Annotation -->
+        <button onclick="sendCreate()">➕ Create Annotation</button>
+
+        <!-- Edit Mode Selection -->
+        <div class="btn-group">
+            <button onclick="setMode('position')" id="posBtn">Position</button>
+            <button onclick="setMode('rotation')" id="rotBtn">Rotation</button>
+            <button onclick="setMode('scale')" id="scaleBtn">Scale</button>
+        </div>
+
+        <!-- Mobile Controls -->
+        <label>Mobile Controls:</label>
+        <div class="mobile-controls">
+            <button class="up" onclick="move('w')">↑</button>
+            <button class="left" onclick="move('a')">←</button>
+            <button class="down" onclick="move('s')">↓</button>
+            <button class="right" onclick="move('d')">→</button>
+        </div>
+
+        <!-- Sensitivity -->
+        <label>Sensitivity:</label>
+        <input type="range" id="sensitivity" min="0.01" max="0.2" step="0.01" value="0.05">
+
+        <!-- Tab Audio Controls -->
+        <div class="tab-audio-section">
+            <h3 style="margin-bottom: 1rem; font-size: 1rem;">🎧 Audio Controls</h3>
+            <div class="audio-btn-group">
+                <button id="tabBtn" onclick="captureTabAudio()" class="tab-btn">🎧 Share Tab</button>
+                <button id="micBtn" onclick="toggleMicrophone()">🎤 Mic</button>
+            </div>
+            <div class="audio-btn-group">
+                <button onclick="toggleAudioMeters()">📊 Meters</button>
+                <button onclick="testTabAudio()">🧪 Test Tab</button>
+            </div>
+        </div>
+
+        <!-- Audio Meters -->
+        <div class="audio-meters" id="audioMeters">
+            <h4>🔊 Audio Levels</h4>
+            <div class="meter-container">
+                <div class="meter-label">
+                    <span>🎤 Microphone</span>
+                    <span id="micLevel">-∞ dB</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="micMeter" class="meter-level"></div>
+                </div>
+            </div>
+            <div class="meter-container">
+                <div class="meter-label">
+                    <span>🎧 Tab Audio</span>
+                    <span id="tabLevel">-∞ dB</span>
+                </div>
+                <div class="meter-bar">
+                    <div id="tabMeter" class="meter-level"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Annotation List -->
+        <div class="annotation-list" id="annotationList">
+            <h4>📋 Annotations</h4>
+            <div style="color: var(--text-muted); font-size: 0.8rem;">No annotations yet</div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="upload-section">
+            <h3 style="margin-bottom: 1rem; font-size: 1rem;">📁 Upload Reference</h3>
+            <form id="uploadForm">
+                <label>Type:</label>
+                <select id="uploadType" name="type">
+                    <option value="pdf">PDF</option>
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                </select>
+                <input type="file" name="file" required>
+                <button type="submit">⬆️ Upload</button>
+            </form>
+            <div class="upload-result" id="uploadResult"></div>
+        </div>
+    </div>
+
+    <!-- Screen Share Panel (80%) -->
+    <div class="screenshare-panel" id="screensharePanel">
+        <!-- Header with controls -->
+        <div class="header">
+            <h1>🎥 JustVR - Screen Share</h1>
+            <div class="header-controls">
+                <input type="text" class="session-input" id="sessionCode" placeholder="Session code" value="screen123">
+                <button id="connectBtn" onclick="connect()">🔗 Connect</button>
+                <button id="disconnectBtn" onclick="disconnect()" disabled>❌ Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Video container -->
+        <div class="video-container" ondblclick="toggleFullscreen()">
+            <video id="remoteVideo" autoplay playsinline muted></video>
+            
+            <!-- Tab audio preview -->
+            <div class="tab-preview" id="tabPreview">
+                <div class="tab-preview-label">Tab Audio Preview</div>
+                <video id="localVideo" autoplay playsinline muted></video>
+            </div>
+            
+            <!-- Video overlay controls -->
+            <div class="video-overlay">
+                <button class="overlay-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                <button class="overlay-btn" id="muteBtn" onclick="toggleMute()" style="display: none;">🔇</button>
+                <!-- <button class="overlay-btn" onclick="toggleAnnotationPanel()">📝 Annotations</button> -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Status messages -->
+    <div id="status" class="status info">Enter session code and connect to start</div>
+
+    <script>
+        toggleAnnotationPanel()
+        const annotationSocket = new WebSocket("ws://13.202.211.167:8081"); 
+        const roomCode = generateCode();
+        document.getElementById("roomCode").textContent = roomCode;
+
+        // Track state for annotation editing
+        let pos = { x: 0, y: 0, z: 0 };
+        let scale = { x: 1, y: 1, z: 1 };
+        let rot = { x: 0, y: 0, z: 0 };
+        let keys = {};
+        let annotations = {};
+        let editing = null;
+        let lastEditing = null;
+        let editMode = "position";
+
+        // Track last sent values for delta calculation
+        let lastSent = {
+            pos: { x: 0, y: 0, z: 0 },
+            rot: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 }
+        };
+
+        // Generate random room code
+        function generateCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        }
+
+        // Annotation WebSocket setup
+        annotationSocket.onopen = () => {
+            console.log("✅ Annotation WebSocket connection established!");
+            console.log("Sending room code:", roomCode);
+            annotationSocket.send(JSON.stringify({ client: "web", annotationRoomCode: roomCode }));
+        };
+
+        function generateAnnotationId() {
+            return 'AN-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+        }
+
+        function setMode(mode) { 
+            editMode = mode;
+            // Update button styles
+            document.querySelectorAll('.btn-group button').forEach(btn => btn.style.background = 'var(--button)');
+            if (mode === 'position') document.getElementById('posBtn').style.background = 'var(--accent)';
+            if (mode === 'rotation') document.getElementById('rotBtn').style.background = 'var(--accent)';
+            if (mode === 'scale') document.getElementById('scaleBtn').style.background = 'var(--accent)';
+        }
+
+        function move(key) { handleKey(key); }
+
+        function sendCreate() {
+            pos = { x: 0, y: 0, z: 0 };
+            rot = { x: 0, y: 0, z: 0 };
+            scale = { x: 1, y: 1, z: 1 };
+            lastSent = {
+                pos: { ...pos },
+                rot: { ...rot },
+                scale: { ...scale }
+            };
+
+            const id = generateAnnotationId();
+            const type = document.getElementById("shapeSelector").value;
+            const msg = {
+                command: "create",
+                type,
+                annotationId: id,
+                position: { ...pos },
+                rotation: { ...rot },
+                scale: { ...scale }
+            };
+            annotations[id] = { pos: { ...pos }, rot: { ...rot }, scale: { ...scale }, type };
+            editing = id;
+            lastEditing = id;
+            sendAnnotation(msg);
+            renderAnnotationList();
+        }
+
+        function startEdit(id) {
+            if (editing && editing !== id) {
+                annotationSocket.send(JSON.stringify({
+                    command: "deselect",
+                    annotationId: editing
+                }));
+            }
+            editing = id;
+            lastEditing = id;
+            const ann = annotations[id];
+            pos = { ...ann.pos };
+            rot = { ...ann.rot };
+            scale = { ...ann.scale };
+            lastSent = {
+                pos: { ...pos },
+                rot: { ...rot },
+                scale: { ...scale }
+            };
+            renderAnnotationList();
+
+            annotationSocket.send(JSON.stringify({
+                command: "select",
+                annotationId: id
+            }));
+        }
+
+        function hasNonZero(obj) {
+            return Object.values(obj).some(v => Math.abs(v) > 1e-6);
+        }
+
+        function sendUpdate() {
+            if (!editing) return;
+
+            const posDelta = {
+                x: pos.x - lastSent.pos.x,
+                y: pos.y - lastSent.pos.y,
+                z: pos.z - lastSent.pos.z
+            };
+            const rotDelta = {
+                x: rot.x - lastSent.rot.x,
+                y: rot.y - lastSent.rot.y,
+                z: rot.z - lastSent.rot.z
+            };
+            const scaleDelta = {
+                x: scale.x - lastSent.scale.x,
+                y: scale.y - lastSent.scale.y,
+                z: scale.z - lastSent.scale.z
+            };
+
+            if (hasNonZero(posDelta) || hasNonZero(rotDelta) || hasNonZero(scaleDelta)) {
+                const msg = {
+                    command: "update",
+                    annotationId: editing,
+                    position: posDelta,
+                    rotation: rotDelta,
+                    scale: scaleDelta
+                };
+                sendAnnotation(msg);
+
+                lastSent = {
+                    pos: { ...pos },
+                    rot: { ...rot },
+                    scale: { ...scale }
+                };
+            }
+        }
+
+        function sendDelete(id) {
+            if (editing === id) {
+                annotationSocket.send(JSON.stringify({
+                    command: "deselect",
+                    annotationId: id
+                }));
+                editing = null;
+                lastEditing = null;
+            }
+            const msg = { command: "delete", annotationId: id };
+            sendAnnotation(msg);
+            delete annotations[id];
+            renderAnnotationList();
+        }
+
+        function sendAnnotation(msg) {
+            annotationSocket.send(JSON.stringify(msg));
+        }
+
+        function renderAnnotationList() {
+            const list = document.getElementById("annotationList");
+            if (Object.keys(annotations).length === 0) {
+                list.innerHTML = '<h4>📋 Annotations</h4><div style="color: var(--text-muted); font-size: 0.8rem;">No annotations yet</div>';
+                return;
+            }
+
+            list.innerHTML = "<h4>📋 Annotations</h4>";
+            for (const id in annotations) {
+                const item = document.createElement("div");
+                item.className = "annotation-item" + (editing === id ? " active" : "");
+                item.innerHTML = `
+                    <span>${id}</span>
+                    <div>
+                        <button onclick="startEdit('${id}')">Edit</button>
+                        <button onclick="sendDelete('${id}')" style="background: #dc3545;">Del</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener("keydown", e => {
+            const key = e.key.toLowerCase();
+            if (key === "escape") {
+                if (editing) {
+                    annotationSocket.send(JSON.stringify({
+                        command: "deselect",
+                        annotationId: editing
+                    }));
+                }
+                editing = null;
+                renderAnnotationList();
+                return;
+            }
+            keys[key] = true;
+        });
+
+        document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+        document.addEventListener("wheel", e => {
+            if (!editing) return;
+            pos.z += e.deltaY * 0.01;
+            annotations[editing].pos = { ...pos };
+            sendUpdate();
+        });
+
+        function displayUploadSuccess(type, file, url) {
+    const output = document.getElementById("uploadResult");
+
+    if (type === 'image') {
+        output.innerHTML = `✅ Image uploaded: <br><img src="${url}" alt="${file.name}" style="max-width: 300px; border-radius: 8px;" />`;
+    } else if (type === 'pdf') {
+        output.innerHTML = `✅ PDF uploaded: <a href="${url}" target="_blank">${file.name}</a>`;
+    } else if (type === 'video') {
+        output.innerHTML = `✅ Video uploaded:<br><video src="${url}" controls style="max-width: 300px;"></video>`;
+    } else {
+        output.innerHTML = `✅ File uploaded: <a href="${url}" target="_blank">${file.name}</a>`;
+    }
+}
+
+
+        function handleKey(k) {
+            if (!editing) return;
+            let sens = parseFloat(document.getElementById("sensitivity").value);
+            let changed = false;
+            if (editMode === "position") {
+                if (k === "w") { pos.y += sens; changed = true; }
+                if (k === "s") { pos.y -= sens; changed = true; }
+                if (k === "a") { pos.x -= sens; changed = true; }
+                if (k === "d") { pos.x += sens; changed = true; }
+                if (changed) annotations[editing].pos = { ...pos };
+            } else if (editMode === "rotation") {
+                if (k === "w") { rot.x += sens * 10; changed = true; }
+                if (k === "s") { rot.x -= sens * 10; changed = true; }
+                if (k === "a") { rot.y -= sens * 10; changed = true; }
+                if (k === "d") { rot.y += sens * 10; changed = true; }
+                if (changed) annotations[editing].rot = { ...rot };
+            } else if (editMode === "scale") {
+                if (k === "w") { scale.y += sens; changed = true; }
+                if (k === "s") { scale.y -= sens; changed = true; }
+                if (k === "a") { scale.x -= sens; changed = true; }
+                if (k === "d") { scale.x += sens; changed = true; }
+                if (changed) annotations[editing].scale = { ...scale };
+            }
+            if (changed) sendUpdate();
+        }
+
+        setInterval(() => {
+            if (!editing) return;
+            ["w", "a", "s", "d"].forEach(k => {
+                if (keys[k]) handleKey(k);
+            });
+        }, 50);
+
+        // File Upload
+ 
+document.getElementById("uploadForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const fileInput = form.querySelector('input[type="file"]');
+    const type = document.getElementById("uploadType").value;
+    const output = document.getElementById("uploadResult");
+    
+    if (!fileInput.files[0]) {
+        output.innerHTML = "❌ Please select a file";
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+        output.innerHTML = "❌ File too large. Max 50MB allowed.";
+        return;
+    }
+    
+    // Show uploading status
+    output.innerHTML = "⏳ Processing file...";
+    
+    try {
+        if (type === 'pdf') {
+            await processPDF(file, output);
+        } else {
+            await processRegularFile(file, type, output);
+        }
+        
+    } catch (error) {
+        console.error("❌ Upload error:", error);
+        output.innerHTML = `❌ Upload failed: ${error.message}`;
+        updateStatus('Upload failed: ' + error.message, 'error');
+    }
+});
+
+// Function to process PDF and extract pages as images
+async function processPDF(file, output) {
+    output.innerHTML = "⏳ Loading PDF.js library...";
+    
+    // Load PDF.js library dynamically
+    if (!window.pdfjsLib) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+        document.head.appendChild(script);
+        
+        await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = reject;
+        });
+        
+        // Set worker
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    }
+    
+    output.innerHTML = "⏳ Extracting PDF pages...";
+    
+    try {
+        // Read the PDF file
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdf.numPages;
+        
+        output.innerHTML = `⏳ Found ${numPages} pages. Converting to images...`;
+        
+        
+        const uploadPromises = [];
+        
+        // Process each page
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            
+            // Set up canvas for rendering
+            const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better quality
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            // Render page to canvas
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            // Convert canvas to blob
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/jpeg', 0.9); // High quality JPEG
+            });
+            
+            // Update progress
+            output.innerHTML = `⏳ Uploading page ${pageNum}/${numPages} to Cloudinary...`;
+            
+            // Upload this page to Cloudinary
+            const uploadPromise = uploadPageToCloudinary(blob, pageNum, numPages);
+            uploadPromises.push(uploadPromise);
+        }
+        
+        // Wait for all uploads to complete
+        const results = await Promise.all(uploadPromises);
+        const successfulUploads = results.filter(result => result.success);
+        
+        if (successfulUploads.length === 0) {
+            throw new Error('All page uploads failed');
+        }
+        
+        // Collect all page URLs
+        const pageUrls = successfulUploads.map(result => result.url);
+        
+        // Create file message in server format for PDF pages
+        const fileMessage = {
+            type: 'file',
+            fileType: 'pdf',
+            urls: pageUrls,
+            pageCount: pageUrls.length,
+            pdfId: `pdf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            roomCode: roomCode,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Send to annotation WebSocket
+        if (annotationSocket.readyState === WebSocket.OPEN) {
+            annotationSocket.send(JSON.stringify(fileMessage));
+            console.log('📤 PDF pages sent via WebSocket:', fileMessage);
+        } else {
+            console.warn('⚠️ WebSocket not open, PDF info not sent');
+        }
+        
+        // Display success UI
+        displayPDFSuccess(file, pageUrls, successfulUploads.length, numPages);
+        
+        // Update status
+        updateStatus(`PDF processed! ${successfulUploads.length}/${numPages} pages uploaded`, 'success');
+        
+        // Reset form
+        document.getElementById("uploadForm").reset();
+        
+    } catch (error) {
+        console.error('PDF processing error:', error);
+        throw new Error(`PDF processing failed: ${error.message}`);
+    }
+}
+
+// Function to upload individual PDF page to Cloudinary
+async function uploadPageToCloudinary(blob, pageNum, totalPages) {
+    try {
+        const formData = new FormData();
+        formData.append('file', blob, `page_${pageNum}.jpg`);
+        formData.append('upload_preset', 'kyc_unsigned');
+        formData.append('folder', `justvr/${roomCode}/pdf_pages`);
+        formData.append('tags', `room_${roomCode},pdf_page,page_${pageNum},justvr`);
+        
+        const response = await fetch(`https://api.cloudinary.com/v1_1/dzunasedh/image/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Page ${pageNum} upload failed: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        return {
+            success: true,
+            url: data.secure_url,
+            pageNum: pageNum,
+            publicId: data.public_id
+        };
+        
+    } catch (error) {
+        console.error(`Error uploading page ${pageNum}:`, error);
+        return {
+            success: false,
+            pageNum: pageNum,
+            error: error.message
+        };
+    }
+}
+
+// Function to process regular files (images and videos)
+async function processRegularFile(file, type, output) {
+    output.innerHTML = "⏳ Uploading to Cloudinary...";
+    
+    const CLOUDINARY_CLOUD_NAME = 'dzunasedh';
+    const UPLOAD_PRESET = 'kyc_unsigned';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    
+    let resourceType = 'auto';
+    let folder = `justvr/${roomCode}/`;
+    
+    if (type === 'image') {
+        resourceType = 'image';
+        folder += 'images';
+    } else if (type === 'video') {
+        resourceType = 'video';
+        folder += 'videos';
+    }
+    
+    formData.append('folder', folder);
+    formData.append('tags', `room_${roomCode},${type},justvr`);
+    
+    const cloudinaryURL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+    
+    const response = await fetch(cloudinaryURL, {
+        method: 'POST',
+        body: formData
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Cloudinary error response:', errorText);
+        throw new Error(`Cloudinary upload failed: ${response.status}`);
+    }
+    
+    const cloudinaryData = await response.json();
+    
+    if (cloudinaryData.error) {
+        throw new Error(`Cloudinary error: ${cloudinaryData.error.message}`);
+    }
+    
+    const fileUrl = cloudinaryData.secure_url;
+    
+    // Create file message for regular files
+    const fileMessage = {
+        type: 'file',
+        fileType: type,
+        url: fileUrl,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Send to annotation WebSocket
+    if (annotationSocket.readyState === WebSocket.OPEN) {
+        annotationSocket.send(JSON.stringify(fileMessage));
+        console.log('📤 File info sent via WebSocket:', fileMessage);
+    } else {
+        console.warn('⚠️ WebSocket not open, file info not sent');
+    }
+    
+    // Display success UI
+    displayUploadSuccess(type, file, fileUrl);
+    
+    updateStatus(`${type.toUpperCase()} uploaded successfully!`, 'success');
+    document.getElementById("uploadForm").reset();
+}
+
+// Function to display PDF success
+function displayPDFSuccess(file, pageUrls, successCount, totalPages) {
+    const output = document.getElementById("uploadResult");
+    
+    let thumbnailsHTML = '';
+    pageUrls.slice(0, 3).forEach((url, index) => {
+        const thumbnailUrl = url.replace('/upload/', '/upload/w_100,h_140,c_fit/');
+        thumbnailsHTML += `
+            <img src="${thumbnailUrl}" alt="Page ${index + 1}" 
+                 style="width: 80px; height: 110px; object-fit: cover; margin: 2px; border-radius: 4px; cursor: pointer;" 
+                 onclick="openInNewTab('${url}')">
+        `;
+    });
+    
+    if (pageUrls.length > 3) {
+        thumbnailsHTML += `<div style="font-size: 0.8rem; color: var(--text-muted);">... and ${pageUrls.length - 3} more pages</div>`;
+    }
+    
+    output.innerHTML = `
+        <h4>📄 PDF Processed Successfully</h4>
+        <div style="margin: 0.5rem 0; font-size: 0.8rem;">
+            <strong>File:</strong> ${file.name}
+        </div>
+        <div style="margin: 0.5rem 0; font-size: 0.8rem;">
+            <strong>Pages:</strong> ${successCount}/${totalPages} uploaded
+        </div>
+        <div style="margin: 0.5rem 0;">
+            <strong>Page Previews:</strong>
+        </div>
+        <div style="margin: 0.5rem 0; display: flex; flex-wrap: wrap; align-items: center;">
+            ${thumbnailsHTML}
+        </div>
+        <div style="margin: 0.5rem 0;">
+            <button onclick="copyAllPageLinks()" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem; margin-right: 0.5rem;">📋 Copy All Links</button>
+            <button onclick="viewAllPages()" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem;">👁️ View All</button>
+        </div>
+        <div style="margin: 0.5rem 0; font-size: 0.7rem; color: var(--text-muted);">
+            ✅ All pages sent to VR via WebSocket
+        </div>
+    `;
+    
+    // Store page URLs globally for button functions
+    window.currentPageUrls = pageUrls;
+}
+
+// Helper functions for PDF page management
+function copyAllPageLinks() {
+    if (window.currentPageUrls) {
+        const allLinks = window.currentPageUrls.join('\n');
+        navigator.clipboard.writeText(allLinks).then(() => {
+            updateStatus('All page links copied to clipboard!', 'success');
+        }).catch(() => {
+            updateStatus('Failed to copy links', 'error');
+        });
+    }
+}
+
+function viewAllPages() {
+    if (window.currentPageUrls) {
+        window.currentPageUrls.forEach((url, index) => {
+            setTimeout(() => {
+                window.open(url, `_blank_page_${index + 1}`);
+            }, index * 100); // Stagger the opens to avoid popup blocker
+        });
+    }
+}
+
+// Update the existing displayUploadSuccess function
+function displayUploadSuccess(type, file, url) {
+    const output = document.getElementById("uploadResult");
+
+    if (type === 'image') {
+        const thumbnailUrl = url.replace('/upload/', '/upload/w_300,h_200,c_fit/');
+        output.innerHTML = `
+            <h4>🖼 Image Uploaded Successfully</h4>
+            <div style="margin: 0.5rem 0;">
+                <img src="${thumbnailUrl}" alt="${file.name}" 
+                     style="max-width: 100%; max-height: 120px; cursor: pointer;" 
+                     onclick="openInNewTab('${url}')">
+            </div>
+            <div style="margin: 0.5rem 0; font-size: 0.8rem;">
+                <strong>File:</strong> ${file.name}
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <button onclick="copyToClipboard('${url}')" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem; margin-right: 0.5rem;">📋 Copy Link</button>
+                <button onclick="openInNewTab('${url}')" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem;">🔍 View Full</button>
+            </div>
+            <div style="margin: 0.5rem 0; font-size: 0.7rem; color: var(--text-muted);">
+                ✅ Sent to VR via WebSocket
+            </div>
+        `;
+    } else if (type === 'video') {
+        output.innerHTML = `
+            <h4>🎞 Video Uploaded Successfully</h4>
+            <div style="margin: 0.5rem 0;">
+                <video controls style="max-width: 100%; max-height: 120px;">
+                    <source src="${url}" type="${file.type}">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            <div style="margin: 0.5rem 0; font-size: 0.8rem;">
+                <strong>File:</strong> ${file.name}
+            </div>
+            <div style="margin: 0.5rem 0;">
+                <button onclick="copyToClipboard('${url}')" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem; margin-right: 0.5rem;">📋 Copy Link</button>
+                <button onclick="openInNewTab('${url}')" style="width: auto; padding: 0.3rem 0.8rem; font-size: 0.8rem;">🎬 Play</button>
+            </div>
+            <div style="margin: 0.5rem 0; font-size: 0.7rem; color: var(--text-muted);">
+                ✅ Sent to VR via WebSocket
+            </div>
+        `;
+    }
+}
+
+// Helper functions
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        updateStatus('Link copied to clipboard!', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        updateStatus('Failed to copy link', 'error');
+    });
+}
+
+
+        // Initialize annotation mode buttons
+        setMode('position');
+
+        // ===== WEBRTC SCREEN SHARE CODE =====
+        let pc;
+        let ws;
+        let isConnected = false;
+        let statsInterval = null;
+        let iceRestartAttempts = 0;
+        const MAX_ICE_RESTART_ATTEMPTS = 3;
+        let hasAudio = false;
+        let isMuted = true;
+        let micStream = null;
+        let tabStream = null;
+        let microphoneEnabled = false;
+        let tabAudioEnabled = false;
+        let audioContext;
+        let micAnalyser;
+        let tabAnalyser;
+        let micDataArray;
+        let tabDataArray;
+        let audioMetersVisible = false;
+        let audioMetersInterval;
+
+        // DOM Elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const tabBtn = document.getElementById('tabBtn');
+        const micBtn = document.getElementById('micBtn');
+        const statusDiv = document.getElementById('status');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const localVideo = document.getElementById('localVideo');
+        const tabPreview = document.getElementById('tabPreview');
+        const muteBtn = document.getElementById('muteBtn');
+        const audioMeters = document.getElementById('audioMeters');
+
+        // Update session code with room code
+        document.getElementById('sessionCode').value = roomCode;
+
+        // Status update functions
+        function updateStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            console.log(`Status: ${message}`);
+        }
+
+        function updateAudioIndicator() {
+            if (hasAudio) {
+                muteBtn.style.display = 'block';
+                muteBtn.textContent = isMuted ? '🔊 Unmute' : '🔇 Mute';
+            } else {
+                muteBtn.style.display = 'none';
+            }
+
+            if (microphoneEnabled) {
+                micBtn.textContent = '🎤 ON';
+                micBtn.style.background = '#28a745';
+            } else {
+                micBtn.textContent = '🎤 OFF';
+                micBtn.style.background = '#dc3545';
+            }
+
+            if (tabAudioEnabled) {
+                tabBtn.textContent = '⏹️ Stop Tab';
+                tabBtn.classList.add('active');
+            } else {
+                tabBtn.textContent = '🎧 Share Tab';
+                tabBtn.classList.remove('active');
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            remoteVideo.muted = isMuted;
+            updateAudioIndicator();
+        }
+
+        // Audio Level Visualization
+        function setupAudioMeters() {
+            try {
+                // Create audio context if it doesn't exist
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // Setup for microphone if available
+                if (micStream && !micAnalyser) {
+                    const micSource = audioContext.createMediaStreamSource(micStream);
+                    micAnalyser = audioContext.createAnalyser();
+                    micAnalyser.fftSize = 256;
+                    micAnalyser.smoothingTimeConstant = 0.8;
+                    micSource.connect(micAnalyser);
+                    micDataArray = new Uint8Array(micAnalyser.frequencyBinCount);
+                }
+                
+                // Setup for tab audio if available
+                if (tabStream && !tabAnalyser) {
+                    const tabSource = audioContext.createMediaStreamSource(tabStream);
+                    tabAnalyser = audioContext.createAnalyser();
+                    tabAnalyser.fftSize = 256;
+                    tabAnalyser.smoothingTimeConstant = 0.8;
+                    tabSource.connect(tabAnalyser);
+                    tabDataArray = new Uint8Array(tabAnalyser.frequencyBinCount);
+                }
+                
+                // Start updating meters
+                if (!audioMetersInterval) {
+                    audioMetersInterval = setInterval(updateAudioMeters, 100);
+                }
+                
+            } catch (error) {
+                console.error('Error setting up audio meters:', error);
+            }
+        }
+        
+        function updateAudioMeters() {
+            // Update microphone meter
+            if (micAnalyser && micDataArray) {
+                micAnalyser.getByteFrequencyData(micDataArray);
+                const micAverage = Array.from(micDataArray).reduce((a, b) => a + b, 0) / micDataArray.length;
+                const micPercentage = Math.min(100, Math.max(0, micAverage * 100 / 255));
+                
+                // Calculate dB (rough approximation)
+                const micDb = micPercentage > 0 ? Math.round(20 * Math.log10(micPercentage / 100)) : -100;
+                
+                document.getElementById('micMeter').style.width = `${micPercentage}%`;
+                document.getElementById('micLevel').textContent = micDb <= -100 ? '-∞ dB' : `${micDb} dB`;
+                
+                // Change color based on level
+                if (micPercentage > 80) {
+                    document.getElementById('micMeter').style.background = 'linear-gradient(90deg, #28a745, #dc3545)';
+                } else {
+                    document.getElementById('micMeter').style.background = 'linear-gradient(90deg, #28a745, #17a2b8)';
+                }
+            }
+            
+            // Update tab audio meter
+            if (tabAnalyser && tabDataArray) {
+                tabAnalyser.getByteFrequencyData(tabDataArray);
+                const tabAverage = Array.from(tabDataArray).reduce((a, b) => a + b, 0) / tabDataArray.length;
+                const tabPercentage = Math.min(100, Math.max(0, tabAverage * 100 / 255));
+                
+                // Calculate dB (rough approximation)
+                const tabDb = tabPercentage > 0 ? Math.round(20 * Math.log10(tabPercentage / 100)) : -100;
+                
+                document.getElementById('tabMeter').style.width = `${tabPercentage}%`;
+                document.getElementById('tabLevel').textContent = tabDb <= -100 ? '-∞ dB' : `${tabDb} dB`;
+                
+                // Change color based on level
+                if (tabPercentage > 80) {
+                    document.getElementById('tabMeter').style.background = 'linear-gradient(90deg, #6610f2, #dc3545)';
+                } else {
+                    document.getElementById('tabMeter').style.background = 'linear-gradient(90deg, #6610f2, #17a2b8)';
+                }
+            }
+        }
+        
+        function toggleAudioMeters() {
+            if (audioMetersVisible) {
+                audioMeters.style.display = 'none';
+                audioMetersVisible = false;
+            } else {
+                setupAudioMeters();
+                audioMeters.style.display = 'block';
+                audioMetersVisible = true;
+            }
+        }
+
+        async function connect() {
+            const sessionCode = document.getElementById('sessionCode').value.trim();
+            if (!sessionCode) {
+                updateStatus('Please enter a session code', 'error');
+                return;
+            }
+
+            try {
+                connectBtn.disabled = true;
+                updateStatus('🎤 Auto-enabling microphone...', 'info');
+
+                // Enable microphone
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            sampleRate: 48000,
+                            channelCount: 1
+                        }
+                    });
+                    microphoneEnabled = true;
+                    setupAudioMeters();
+                    updateStatus('🎤 Microphone enabled', 'success');
+                } catch (error) {
+                    console.warn('Microphone access denied:', error);
+                    updateStatus('Microphone denied - receiving only', 'info');
+                }
+
+                // Create WebSocket connection
+                ws = new WebSocket('ws://13.202.211.167:8080');
+                
+                // Create peer connection
+                pc = new RTCPeerConnection({
+                    iceServers: [
+    // Your TURN server (UDP and TCP)
+    {
+        urls: [
+            'turn:13.202.211.167:3478?transport=udp',
+            'turn:13.202.211.167:3478?transport=tcp'
+        ],
+        username: 'assist',
+        credential: 'assist@123'
+    },
+    // Public TURN server 1 (Xirsys example)
+    {
+        urls: [
+            'turn:global.relay.metered.ca:80',
+            'turn:global.relay.metered.ca:443',
+            'turn:global.relay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    },
+    // Public TURN server 2 (Twilio example)
+    {
+        urls: [
+            'turn:global.turn.twilio.com:3478?transport=udp',
+            'turn:global.turn.twilio.com:3478?transport=tcp',
+            'turn:global.turn.twilio.com:443?transport=tcp'
+        ],
+        username: '4a4d0f5b3f5340987216a68b0b2dae0474ead925014f929dd2c6290cfc59dd82',
+    credential: 'vP762ZMgq8bW00yCMKWxzIocawLtL6reAGu6Y88nmOo='
+  },
+    // STUN servers (as fallback)
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' }
+],
+                    iceCandidatePoolSize: 2
+                });
+
+                // Configure audio
+                if (micStream && microphoneEnabled) {
+                    micStream.getTracks().forEach(track => {
+                        pc.addTrack(track, micStream);
+                    });
+                    pc.addTransceiver('audio', { direction: 'sendrecv' });
+                } else {
+                    pc.addTransceiver('audio', { direction: 'recvonly' });
+                }
+                
+                pc.addTransceiver('video', { direction: 'recvonly' });
+
+                // Event handlers
+                pc.oniceconnectionstatechange = () => {
+                    console.log(`ICE connection state: ${pc.iceConnectionState}`);
+                    if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                        updateStatus('Connection established!', 'success');
+                    } else if (pc.iceConnectionState === 'failed') {
+                        updateStatus('Connection failed', 'error');
+                    }
+                };
+
+                pc.ontrack = event => {
+                    if (event.streams && event.streams[0]) {
+                        const stream = event.streams[0];
+                        remoteVideo.srcObject = stream;
+                        
+                        const audioTracks = stream.getAudioTracks();
+                        if (audioTracks.length > 0) {
+                            hasAudio = true;
+                            remoteVideo.muted = false;
+                            updateStatus('Screen sharing with audio connected!', 'success');
+                        } else {
+                            updateStatus('Screen sharing connected!', 'success');
+                        }
+                        updateAudioIndicator();
+                    }
+                };
+
+                pc.onicecandidate = event => {
+                    if (event.candidate && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            sessionCode: sessionCode,
+                            'ice-candidate': {
+                                candidate: event.candidate.candidate,
+                                sdpMid: event.candidate.sdpMid || "",
+                                sdpMLineIndex: event.candidate.sdpMLineIndex || 0
+                            }
+                        }));
+                    }
+                };
+
+                // WebSocket handlers
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({
+                        type: 'join',
+                        sessionCode: sessionCode,
+                        clientType: 'web'
+                    }));
+                    
+                    updateStatus('Connected! Waiting for Android...', 'info');
+                    isConnected = true;
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    updateAudioIndicator();
+                };
+
+                ws.onmessage = async (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        
+                        if (message.type === 'offer') {
+                            let offer = message.offer?.offer || message.offer;
+                            
+                            if (offer?.type && offer?.sdp) {
+                                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                                const answer = await pc.createAnswer();
+                                await pc.setLocalDescription(answer);
+                                
+                                ws.send(JSON.stringify({
+                                    type: 'answer',
+                                    sessionCode: sessionCode,
+                                    answer: {
+                                        type: answer.type,
+                                        sdp: answer.sdp
+                                    }
+                                }));
+                                
+                                updateStatus('Setting up connection...', 'info');
+                            }
+                            
+                        } else if (message.type === 'ice-candidate') {
+                            const candidateData = message['ice-candidate'] || message.candidate;
+                            
+                            if (candidateData?.candidate) {
+                                const iceCandidate = new RTCIceCandidate({
+                                    candidate: candidateData.candidate,
+                                    sdpMid: candidateData.sdpMid || null,
+                                    sdpMLineIndex: candidateData.sdpMLineIndex !== undefined ? candidateData.sdpMLineIndex : null
+                                });
+                                await pc.addIceCandidate(iceCandidate);
+                            }
+                        } else if (message.type === 'peer-joined') {
+                            if (message.clientType === 'android') {
+                                updateStatus('Android device connected!', 'info');
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error processing message:', e);
+                    }
+                };
+
+                ws.onclose = () => {
+                    updateStatus('Disconnected from server', 'error');
+                    cleanup();
+                };
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('Failed to connect: ' + error.message, 'error');
+                cleanup();
+            }
+        }
+
+        async function toggleMicrophone() {
+            if (!microphoneEnabled) {
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+                    
+                    if (pc && micStream) {
+                        const audioTrack = micStream.getAudioTracks()[0];
+                        const audioSenders = pc.getSenders().filter(s => 
+                            s.track && s.track.kind === 'audio'
+                        );
+                        
+                        if (audioSenders.length > 0) {
+                            await audioSenders[0].replaceTrack(audioTrack);
+                        } else {
+                            pc.addTrack(audioTrack, micStream);
+                        }
+                        
+                        microphoneEnabled = true;
+                        setupAudioMeters();
+                        updateStatus('Microphone enabled', 'success');
+                        updateAudioIndicator();
+                    }
+                } catch (error) {
+                    updateStatus('Failed to access microphone', 'error');
+                }
+            } else {
+                if (micStream) {
+                    micStream.getAudioTracks().forEach(track => {
+                        track.stop();
+                        if (pc) {
+                            pc.getSenders().forEach(sender => {
+                                if (sender.track === track) {
+                                    pc.removeTrack(sender);
+                                }
+                            });
+                        }
+                    });
+                    
+                    micStream = null;
+                    microphoneEnabled = false;
+                    micAnalyser = null;
+                    micDataArray = null;
+                    updateStatus('Microphone disabled', 'info');
+                    updateAudioIndicator();
+                }
+            }
+        }
+
+        async function captureTabAudio() {
+            if (tabAudioEnabled) {
+                stopTabAudio();
+                return;
+            }
+            
+            if (!isConnected || !pc) {
+                updateStatus('Please connect first', 'error');
+                return;
+            }
+            
+            try {
+                updateStatus('Select tab with audio...', 'info');
+                
+                tabStream = await navigator.mediaDevices.getDisplayMedia({
+                    audio: true,
+                    video: {
+                        width: { ideal: 640 }, 
+                        height: { ideal: 360 },
+                        frameRate: { ideal: 5 }
+                    }
+                });
+                
+                const audioTracks = tabStream.getAudioTracks();
+                if (audioTracks.length === 0) {
+                    updateStatus('No audio detected. Check "Share audio"', 'warning');
+                    tabStream.getTracks().forEach(track => track.stop());
+                    tabStream = null;
+                    return;
+                }
+                
+                // Show preview
+                localVideo.srcObject = tabStream;
+                tabPreview.style.display = 'block';
+                
+                const audioTrack = audioTracks[0];
+                const audioSenders = pc.getSenders().filter(s => 
+                    s.track && s.track.kind === 'audio'
+                );
+                
+                if (audioSenders.length > 0) {
+                    await audioSenders[0].replaceTrack(audioTrack);
+                } else {
+                    pc.addTrack(audioTrack, tabStream);
+                }
+                
+                tabAudioEnabled = true;
+                setupAudioMeters();
+                updateStatus('Tab audio streaming!', 'success');
+                updateAudioIndicator();
+                
+                tabStream.getTracks().forEach(track => {
+                    track.onended = () => stopTabAudio();
+                });
+                
+            } catch (error) {
+                updateStatus('Failed to capture tab audio', 'error');
+                tabAudioEnabled = false;
+            }
+        }
+
+        function stopTabAudio() {
+            if (!tabStream) return;
+            
+            tabStream.getTracks().forEach(track => track.stop());
+            
+            // Reset UI
+            tabAudioEnabled = false;
+            tabPreview.style.display = 'none';
+            localVideo.srcObject = null;
+            
+            // Reset audio analyzer
+            if (tabAnalyser) {
+                tabAnalyser = null;
+                tabDataArray = null;
+            }
+            
+            updateStatus('Tab audio stopped', 'info');
+            updateAudioIndicator();
+            
+            tabStream = null;
+        }
+
+        async function testTabAudio() {
+            if (tabAudioEnabled) {
+                updateStatus('Tab audio is already active', 'info');
+                return;
+            }
+            
+            try {
+                updateStatus('Please select a tab with audio to test...', 'info');
+                
+                const tempStream = await navigator.mediaDevices.getDisplayMedia({
+                    audio: true,
+                    video: true
+                });
+                
+                const audioTracks = tempStream.getAudioTracks();
+                if (audioTracks.length === 0) {
+                    updateStatus('No audio detected. Did you check "Share audio"?', 'warning');
+                    tempStream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                
+                tabStream = tempStream;
+                
+                // Show preview
+                localVideo.srcObject = tabStream;
+                tabPreview.style.display = 'block';
+                
+                // Setup audio meter
+                setupAudioMeters();
+                audioMeters.style.display = 'block';
+                audioMetersVisible = true;
+                
+                updateStatus('Tab audio test active - play audio to see levels', 'info');
+                
+                // Set up track ending handler
+                tabStream.getTracks().forEach(track => {
+                    track.onended = () => {
+                        console.log('Tab sharing ended via browser UI');
+                        stopTestTabAudio();
+                    };
+                });
+                
+            } catch (error) {
+                console.error('Failed to access tab audio:', error);
+                updateStatus('Tab audio test failed: ' + error.message, 'error');
+            }
+        }
+
+        function stopTestTabAudio() {
+            if (tabStream && !tabAudioEnabled) {
+                tabStream.getTracks().forEach(track => track.stop());
+                tabStream = null;
+                
+                tabAnalyser = null;
+                tabDataArray = null;
+                
+                localVideo.srcObject = null;
+                tabPreview.style.display = 'none';
+                
+                updateStatus('Tab audio test stopped', 'info');
+            }
+        }
+
+        function disconnect() {
+            updateStatus('Disconnecting...', 'info');
+            cleanup();
+        }
+
+        function cleanup() {
+            if (tabStream) {
+                tabStream.getTracks().forEach(track => track.stop());
+                tabStream = null;
+                tabAudioEnabled = false;
+            }
+            
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+                microphoneEnabled = false;
+            }
+            
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            if (audioMetersInterval) {
+                clearInterval(audioMetersInterval);
+                audioMetersInterval = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close().catch(console.error);
+                audioContext = null;
+                micAnalyser = null;
+                tabAnalyser = null;
+                micDataArray = null;
+                tabDataArray = null;
+            }
+            
+            isConnected = false;
+            hasAudio = false;
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            
+            tabPreview.style.display = 'none';
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+            muteBtn.style.display = 'none';
+            
+            audioMeters.style.display = 'none';
+            audioMetersVisible = false;
+            
+            updateAudioIndicator();
+            updateStatus('Disconnected', 'info');
+        }
+
+        // ===== UI FUNCTIONS =====
+        function toggleAnnotationPanel() {
+            const panel = document.getElementById('annotationPanel');
+            const screenshare = document.getElementById('screensharePanel');
+            
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                screenshare.classList.remove('fullscreen');
+            } else {
+                panel.classList.add('hidden');
+                screenshare.classList.add('fullscreen');
+            }
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+                document.body.classList.remove('fullscreen-mode');
+            } else {
+                document.documentElement.requestFullscreen();
+                document.body.classList.add('fullscreen-mode');
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanup);
+
+        // Handle fullscreen changes
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('fullscreen-mode');
+            }
+        });
+    </script>
+</body>
+</html>
